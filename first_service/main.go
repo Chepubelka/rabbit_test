@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 	"encoding/json"
+	"path"
+	"html/template"
 	"github.com/gorilla/mux"
 	"github.com/streadway/amqp"
 )
@@ -16,7 +18,20 @@ func main() {
 func handleRequests() {
 	myRouter := mux.NewRouter().StrictSlash(true)
 	myRouter.HandleFunc("/counter/{count}", counter)
+	myRouter.HandleFunc("/render/{count}", render)
 	log.Fatal(http.ListenAndServe(":8080", myRouter))
+}
+
+func render(w http.ResponseWriter, r *http.Request) {
+	fp := path.Join("views", "index.html")
+	tmpl, err := template.ParseFiles(fp)
+	if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+	}
+	if err := tmpl.Execute(w, ""); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+    }
 }
 
 func counter(w http.ResponseWriter, r *http.Request) {
