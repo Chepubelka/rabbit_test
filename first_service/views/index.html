@@ -1,11 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
 </head>
+
 <body>
-    
+    <input id="input" type="text" />
+    <button onclick="send()">Send</button>
+    <button onclick="closeConn()">Close</button>
+    <pre id="output"></pre>
 </body>
+<script>
+    var input = document.getElementById("input");
+    var output = document.getElementById("output");
+    var socket = new WebSocket("ws://localhost:8081/counter");
+
+    socket.onopen = function () {
+        output.innerHTML += "Status: Connected\n";
+    };
+
+    socket.onmessage = function (e) {
+        output.innerHTML += "Server: " + e.data + "\n";
+    };
+
+    socket.onclose = function (event) {
+        if (event.wasClean) {
+            alert(`[close] Соединение закрыто чисто, код=${event.code} причина=${event.reason}`);
+        } else {
+            alert('[close] Соединение прервано');
+        }
+    };
+
+    function closeConn() {
+        socket.close(1000, "работа закончена");
+        output.innerHTML = "";
+    }
+
+
+    function send() {
+        socket.send(input.value);
+        input.value = "";
+    }
+</script>
+
 </html>
