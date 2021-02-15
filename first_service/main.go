@@ -1,16 +1,18 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"log"
 	"net/http"
 	"net/http/pprof"
+	"net/url"
 	"os"
 	"strconv"
-	//s "strings"
+
+	"os/signal"
 
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 	"github.com/streadway/amqp"
 )
 
@@ -22,7 +24,7 @@ func handleRequests() {
 	myRouter.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	myRouter.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	myRouter.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	log.Fatal(http.ListenAndServe(":8080", myRouter))
+	log.Fatal(http.ListenAndServe(":8081", myRouter))
 }
 
 func main() {
@@ -33,38 +35,9 @@ func startQueue(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	count := vars["count"]
 	countInt, _ := strconv.Atoi(count)
-	name_log := generateLogs(countInt)
-	sender(name_log)
+	//name_log := generateLogs(countInt)
+	sender(countInt)
 	getter()
-}
-
-func generateLogs(count int) string {
-	var data []string
-/* 	data = append(data, "debug\n")
-	line := "Barak"
-	line = s.Repeat(line, count) + "\n" */
-	for i := 1; i <= count; i++ {
-		StringI := strconv.Itoa(i) + "\n"
-		data = append(data, StringI)
-	}
-	name_log := "hello.log"
-	file, err := os.Create(name_log)
-	if err != nil {
-		fmt.Println("Unable to create file:", err)
-		os.Exit(1)
-	}
-	defer file.Close()
-	for _, val := range data {
-		file.WriteString(val)
-	}
-/* 	w := bufio.NewWriter(file)
-	for _, val := range data {
-		w.Write([]byte(val))
-		failOnError(err, "Fail to write")
-	}
-
-	fmt.Println("Ну типа") */
-	return name_log
 }
 
 func getter() {
@@ -103,7 +76,7 @@ func getter() {
 		for i := range num {
 			IntI, err := strconv.Atoi(string(i.Body))
 			failOnError(err, "Fail to write")
-			if (IntI % 2 == 0) {
+			if IntI%2 == 0 {
 				fmt.Print(string(i.Body) + "\n")
 				file.WriteString(string(i.Body) + "\n")
 			}
@@ -112,55 +85,51 @@ func getter() {
 	<-forever
 }
 
-func sender(name_log string) {
-	conn, err := amqp.Dial("amqp://guest:guest@192.168.2.50:5672/")
-	failOnError(err, "Failed to connect to RabbitMQ")
-	defer conn.Close()
-	ch, err := conn.Channel()
-	failOnError(err, "Failed to open a channel")
-	defer ch.Close()
-	q, err := ch.QueueDeclare(
-		"hello", // name
-		false,   // durable
-		false,   // delete when unused
-		false,   // exclusive
-		false,   // no-wait
-		nil,     // arguments
-	)
-	file, err := os.Open(name_log)
+func sender(count int) {
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
+	u := url.URL{Scheme: "ws", Host: "192.168.2.50:3000", Path: "/queue/receive"}
+	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatal("dial:", err)
 	}
-	defer file.Close()
-	//var lines []string
+	defer c.Close()
 
-	scanner := bufio.NewScanner(file)
-/* 	for i := 0; i <= 100; i++ {
-		StrI := strconv.Itoa(i)
-		err = ch.Publish(
-			"",     // exchange
-			q.Name, // routing key
-			false,  // mandatory
-			false,  // immediate
-			amqp.Publishing{
-				ContentType: "text/plain",
-				Body:        []byte(StrI),
-			})
-		failOnError(err, "Failed to publish a message")
-	} */
-	for scanner.Scan() {
-		//lines = append(lines, scanner.Text())
-		err = ch.Publish(
-			"",     // exchange
-			q.Name, // routing key
-			false,  // mandatory
-			false,  // immediate
-			amqp.Publishing{
-				ContentType: "text/plain",
-				Body:        []byte(scanner.Text()),
-			})
-		failOnError(err, "Failed to publish a message")
+	go func() {
+		for {
+			_, message, err := c.ReadMessage()
+			if err != nil {
+				log.Println("read:", err)
+				return
+			}
+			log.Printf("recv: %s", message)
+		}
+	}()
+	done := make(chan struct{})
+	countChan := make(chan string)
+	countString := strconv.Itoa(count)
+	for {
+		select {
+		case <-done:
+			return
+		case <-countChan:
+			err := c.WriteMessage(websocket.TextMessage, []byte("send " + countString))
+			if err != nil {
+				log.Println("write:", err)
+				return
+			}
+			return
+		case <-interrupt:
+			log.Println("interrupt")
+
+			// Cleanly close the connection by sending a close message and then
+			// waiting (with timeout) for the server to close the connection.
+			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			if err != nil {
+				log.Println("write close:", err)
+				return
+			}
+		}
 	}
 }
 
