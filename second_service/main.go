@@ -2,7 +2,9 @@ package main
 
 import (
 	"log"
-	"strconv"
+	//"strconv"
+	"fmt"
+	"io/ioutil"
 
 	"github.com/streadway/amqp"
 )
@@ -25,7 +27,6 @@ func main() {
 		nil,    // arguments
 	)
 	failOnError(err, "Failed to declare a queue")
-
 	num, err := ch.Consume(
 		q.Name, // queue
 		"",     // consumer
@@ -36,32 +37,13 @@ func main() {
 		nil,    // args
 	)
 	failOnError(err, "Failed to register a consumer")
-
 	forever := make(chan bool)
-
-	new_q, err := ch.QueueDeclare(
-		"test1", // name
-		false,  // durable
-		false,  // delete when unused
-		false,  // exclusive
-		false,  // no-wait
-		nil,    // arguments
-	)
-	failOnError(err, "Failed to declare a queue")
-
 	go func() {
 		for i := range num {
-			byteToInt, _ := strconv.Atoi(string(i.Body))
-			result := strconv.Itoa(byteToInt * 2)
-			err = ch.Publish(
-				"",     // exchange
-				new_q.Name, // routing key
-				false,  // mandatory
-				false,  // immediate
-				amqp.Publishing{
-					ContentType: "text/plain",
-					Body:        []byte(result),
-				})
+			err := ioutil.WriteFile("new_hello.log", i.Body, 0777)
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
 	}()
 	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
