@@ -105,31 +105,16 @@ func sender(count int) {
 			log.Printf("recv: %s", message)
 		}
 	}()
-	done := make(chan struct{})
-	countChan := make(chan string)
+/* 	done := make(chan struct{})
+	countChan := make(chan string) */
 	countString := strconv.Itoa(count)
 	for {
-		select {
-		case <-done:
+		err := c.WriteMessage(websocket.TextMessage, []byte("send "+countString))
+		if err != nil {
+			log.Println("write:", err)
 			return
-		case <-countChan:
-			err := c.WriteMessage(websocket.TextMessage, []byte("send " + countString))
-			if err != nil {
-				log.Println("write:", err)
-				return
-			}
-			return
-		case <-interrupt:
-			log.Println("interrupt")
-
-			// Cleanly close the connection by sending a close message and then
-			// waiting (with timeout) for the server to close the connection.
-			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				log.Println("write close:", err)
-				return
-			}
 		}
+		return
 	}
 }
 
