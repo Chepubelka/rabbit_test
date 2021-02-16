@@ -1,24 +1,26 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"net/http/pprof"
-	"net/url"
 	"os"
-	"strconv"
 
-	"os/signal"
+	//"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
 	"github.com/streadway/amqp"
 )
 
+type Config struct {
+	Queue int
+}
+
 func handleRequests() {
 	myRouter := mux.NewRouter().StrictSlash(true)
-	myRouter.HandleFunc("/startQueue/{count}", startQueue)
 	myRouter.HandleFunc("/debug/pprof/", pprof.Index)
 	myRouter.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 	myRouter.HandleFunc("/debug/pprof/profile", pprof.Profile)
@@ -28,19 +30,21 @@ func handleRequests() {
 }
 
 func main() {
-	handleRequests()
+	config := getConfiguration()
+	getter(config.Queue)
+	//handleRequests()
 }
 
-func startQueue(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	count := vars["count"]
-	countInt, _ := strconv.Atoi(count)
-	//name_log := generateLogs(countInt)
-	sender(countInt)
-	getter()
+func getConfiguration() *Config {
+	file, _ := os.Open("config.json")
+	decoder := json.NewDecoder(file)
+	config := new(Config)
+	err := decoder.Decode(&config)
+	failOnError(err, "Fail to decoding")
+	return config
 }
 
-func getter() {
+func getter(countQueue int) {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost/")
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
@@ -67,55 +71,23 @@ func getter() {
 		nil,        // args
 	)
 	failOnError(err, "Failed to register a consumer")
+	err = ch.Qos(countQueue, 0, false)
+	failOnError(err, "Failed to register a consumer")
 	forever := make(chan bool)
 	file, err := os.Create("new_hello.log")
 	failOnError(err, "Error open file")
 	defer file.Close()
-	//w := bufio.NewWriter(file)
-	func() {
-		for i := range num {
-			IntI, err := strconv.Atoi(string(i.Body))
-			failOnError(err, "Fail to write")
-			if IntI%2 == 0 {
-				fmt.Print(string(i.Body) + "\n")
-				file.WriteString(string(i.Body) + "\n")
+	for i := 0; i < countQueue; i++ {
+		go func() {
+			for d := range num {
+				time.Sleep(5000 * time.Millisecond)
+				fmt.Print(d.Body)
+				file.WriteString(string(d.Body) + "\n")
 			}
-		}
-	}()
+			os.Exit(1)
+		}()
+	}
 	<-forever
-}
-
-func sender(count int) {
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-	u := url.URL{Scheme: "ws", Host: "192.168.2.50:3000", Path: "/queue/receive"}
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	if err != nil {
-		log.Fatal("dial:", err)
-	}
-	defer c.Close()
-
-	go func() {
-		for {
-			_, message, err := c.ReadMessage()
-			if err != nil {
-				log.Println("read:", err)
-				return
-			}
-			log.Printf("recv: %s", message)
-		}
-	}()
-/* 	done := make(chan struct{})
-	countChan := make(chan string) */
-	countString := strconv.Itoa(count)
-	for {
-		err := c.WriteMessage(websocket.TextMessage, []byte("send "+countString))
-		if err != nil {
-			log.Println("write:", err)
-			return
-		}
-		return
-	}
 }
 
 func failOnError(err error, msg string) {
