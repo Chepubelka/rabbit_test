@@ -2,17 +2,17 @@ package main
 
 import (
 	"encoding/json"
+	//"fmt"
 	"log"
-	"net/http"
-	"net/http/pprof"
+	//"math/rand"
+	//"net/http"
+	//"net/http/pprof"
 	"os"
-	"fmt"
-	"math/rand"
 
-	"strconv"
-	"time"
+	//"strconv"
+	//"time"
 
-	"github.com/gorilla/mux"
+	//"github.com/gorilla/mux"
 	"github.com/streadway/amqp"
 )
 
@@ -20,20 +20,10 @@ type Config struct {
 	Queue int
 }
 
-func handleRequests() {
-	myRouter := mux.NewRouter().StrictSlash(true)
-	myRouter.HandleFunc("/debug/pprof/", pprof.Index)
-	myRouter.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	myRouter.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	myRouter.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	myRouter.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	log.Fatal(http.ListenAndServe(":8081", myRouter))
-}
 
 func main() {
 	config := getConfiguration()
 	getter(config.Queue)
-	//handleRequests()
 }
 
 func getConfiguration() *Config {
@@ -74,23 +64,30 @@ func getter(countQueue int) {
 	failOnError(err, "Failed to register a consumer")
 	err = ch.Qos(countQueue, 0, false)
 	failOnError(err, "Failed to register a consumer")
-	forever := make(chan bool)
 	file, err := os.Create("new_hello.log")
 	failOnError(err, "Error open file")
 	defer file.Close()
-	for i := 0; i < countQueue; i++ {
+
+	
+
+
+
+
+	forever := make(chan bool)
+/* 	for i := 0; i < countQueue; i++ {
 		go func() {
+			fmt.Print("start\n")
 			for d := range num {
 				r := rand.Intn(5000) + 2000
 				strTime := strconv.Itoa(r)
-				fmt.Print(strTime + "_" + string(d.Body) + "\n")
 				time.Sleep(time.Duration(r) * time.Millisecond)
+				fmt.Print(strTime + "_" + string(d.Body) + "\n")
 				file.WriteString(string(d.Body) + "\n")
 			}
 			os.Exit(1)
 		}()
 	}
-	<-forever
+	<-forever */
 }
 
 func failOnError(err error, msg string) {
