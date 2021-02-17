@@ -2,17 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	//"fmt"
 	"log"
-	//"math/rand"
-	//"net/http"
-	//"net/http/pprof"
+	pool "./pool"
 	"os"
 
-	//"strconv"
-	//"time"
-
-	//"github.com/gorilla/mux"
 	"github.com/streadway/amqp"
 )
 
@@ -62,32 +55,21 @@ func getter(countQueue int) {
 		nil,        // args
 	)
 	failOnError(err, "Failed to register a consumer")
-	err = ch.Qos(countQueue, 0, false)
-	failOnError(err, "Failed to register a consumer")
-	file, err := os.Create("new_hello.log")
-	failOnError(err, "Error open file")
-	defer file.Close()
 
-	
+	p := pool.NewPool(countQueue)
 
-
-
-
+	p.Run()
 	forever := make(chan bool)
-/* 	for i := 0; i < countQueue; i++ {
-		go func() {
-			fmt.Print("start\n")
-			for d := range num {
-				r := rand.Intn(5000) + 2000
-				strTime := strconv.Itoa(r)
-				time.Sleep(time.Duration(r) * time.Millisecond)
-				fmt.Print(strTime + "_" + string(d.Body) + "\n")
-				file.WriteString(string(d.Body) + "\n")
+	go func() {
+		counter := 1
+		for d := range num {
+			p.JobQueue <- pool.Job{
+				ID:			counter,
+				Resources: 	string(d.Body),
 			}
-			os.Exit(1)
-		}()
-	}
-	<-forever */
+		}
+	}()
+	<-forever
 }
 
 func failOnError(err error, msg string) {

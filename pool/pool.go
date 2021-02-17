@@ -1,14 +1,19 @@
 package pool
 
-import "log"
+import (
+	"log"
+	"math/rand"
+	"time"
+	"strconv"
+)
 
 type Job struct {
-	ID			int32
-	Resources	string
+	ID        int
+	Resources string
 }
 
 type Pool struct {
-	NumWorkers  int32
+	NumWorkers  int
 	JobChannels chan chan Job
 	JobQueue    chan Job
 	Stopped     chan bool
@@ -21,7 +26,7 @@ type Worker struct {
 	Quit        chan bool
 }
 
-func NewPool(numworkers int32) Pool {
+func NewPool(numworkers int) Pool {
 	return Pool{
 		NumWorkers:  numworkers,
 		JobChannels: make(chan chan Job),
@@ -50,7 +55,6 @@ func (p *Pool) Allocate() {
 		for {
 			select {
 			case job := <-q:
-				// get from the JobChannels
 				availChannel := <-p.JobChannels
 				availChannel <- job
 
@@ -77,8 +81,12 @@ func (w *Worker) Start() {
 }
 
 func (w *Worker) work(job Job) {
+	r := rand.Intn(5000) + 2000
+	strTime := strconv.Itoa(r)
+	log.Printf(strTime)
 	log.Printf("------")
 	log.Printf("Processed by Worker [%d]", w.ID)
 	log.Printf("Processed Job With ID [%d] & content: [%s]", job.ID, job.Resources)
 	log.Printf("-------")
+	time.Sleep(time.Duration(r) * time.Millisecond)
 }
