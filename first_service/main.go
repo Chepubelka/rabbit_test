@@ -2,13 +2,14 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"fmt"
+	"math/rand"
 
-	//"strconv"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -80,8 +81,10 @@ func getter(countQueue int) {
 	for i := 0; i < countQueue; i++ {
 		go func() {
 			for d := range num {
-				time.Sleep(5000 * time.Millisecond)
-				fmt.Print(d.Body)
+				r := rand.Intn(5000) + 2000
+				strTime := strconv.Itoa(r)
+				fmt.Print(strTime + "_" + string(d.Body) + "\n")
+				time.Sleep(time.Duration(r) * time.Millisecond)
 				file.WriteString(string(d.Body) + "\n")
 			}
 			os.Exit(1)
